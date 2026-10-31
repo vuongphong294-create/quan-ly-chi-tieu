@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phần mềm Quản lý Tài chính Cá nhân</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+    <style>
+        :root {
+            --ctrl: #f0f0f0;
+            --coral: #F08080;
+            --teal: #20B2AA;
+            --yellow: #FFFFE0;
+            --border: #7a7a7a;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--ctrl); font-family: Arial, "Segoe UI", sans-serif; font-size: 14px; color: #000; }
+        .app { max-width: 1000px; margin: 0 auto; min-height: 100vh; background: var(--ctrl); }
+
+        /* ===== Thanh tab giống TabControl ===== */
+        .tabs { display: flex; padding: 4px 4px 0; border-bottom: 1px solid #acacac; background: var(--ctrl); overflow-x: auto; position: sticky; top: 0; z-index: 5; }
+        .tab { font: inherit; font-size: 15px; padding: 5px 10px; margin-right: -1px; border: 1px solid #acacac; border-bottom: none; background: var(--ctrl); color: #000; cursor: pointer; white-space: nowrap; }
+        .tab.active { background: #fff; padding-bottom: 7px; margin-top: -2px; position: relative; top: 1px; }
+        .page { display: none; padding: 15px; }
+        .page.active { display: block; }
+
+        /* ===== Form nhập liệu ===== */
+        .form { display: grid; grid-template-columns: auto minmax(0, 45fr) auto minmax(0, 55fr); gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+        .lbl { white-space: nowrap; }
+        .l1 { grid-column: 1; } .c1 { grid-column: 2; } .l2 { grid-column: 3; } .c2 { grid-column: 4; }
+        .r1 { grid-row: 1; } .r2 { grid-row: 2; } .r3 { grid-row: 3; }
+        input, select, button { font-family: Arial, "Segoe UI", sans-serif; font-size: 14px; }
+        .form input, .form select { width: 100%; height: 28px; padding: 3px 5px; border: 1px solid var(--border); border-radius: 0; background: #fff; }
+        .form select { background: #e5f1fb; }
+        .form input#amount0, .form input#amount1 { font-size: 15px; font-weight: bold; }
+        .form input::placeholder { color: #888; }
+        .newcat { display: flex; gap: 6px; }
+        .newcat input { flex: 1; min-width: 0; }
+        .btn { height: 28px; padding: 0 12px; border: 1px solid #888; background: var(--ctrl); color: #000; cursor: pointer; border-radius: 0; }
+        .btn:active { background: #d8d8d8; }
+        .quick { display: flex; flex-wrap: wrap; gap: 4px; }
+        .quick button { min-width: 34px; height: 28px; padding: 0 8px; border: 1px solid #d3d3d3; background: var(--yellow); cursor: pointer; border-radius: 0; font-size: 13px; }
+        .quick button.clear { background: var(--coral); color: #fff; }
+        .quick button:active { filter: brightness(92%); }
+
+        .save { display: block; width: 100%; height: 44px; margin-bottom: 14px; border: none; border-radius: 0; color: #fff; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .save.exp { background: var(--coral); }
+        .save.inc { background: var(--teal); }
+        .save:active { filter: brightness(92%); }
+
+        /* ===== Bảng dữ liệu ===== */
+        .gridwrap { background: #fff; border: 1px solid #333; overflow: auto; max-height: calc(100vh - 290px); min-height: 220px; }
+        table.grid { width: 100%; min-width: 600px; border-collapse: collapse; }
+        .grid th { position: sticky; top: 0; z-index: 1; background: #fff; text-align: left; font-weight: normal; padding: 5px 8px; border-bottom: 1px solid #ccc; border-right: 1px solid #e0e0e0; white-space: nowrap; }
+        .grid td { padding: 0 4px; border-bottom: 1px solid #eee; border-right: 1px solid #f0f0f0; height: 30px; }
+        .grid td.date { padding: 0 8px; white-space: nowrap; }
+        .grid td input, .grid td select { width: 100%; height: 26px; padding: 2px 4px; border: 1px solid transparent; background: transparent; border-radius: 0; font-size: 14px; }
+        .grid td input:hover, .grid td select:hover { border-color: #ccc; }
+        .grid td input:focus, .grid td select:focus { border-color: #3c8dde; background: #fff; outline: none; }
+        .grid td.del { width: 80px; text-align: center; }
+        .grid td.del button { width: 100%; height: 24px; border: 1px solid #888; background: var(--ctrl); cursor: pointer; border-radius: 0; font-size: 13px; }
+        .grid td.del button:active { background: #d8d8d8; }
+        .grid tr.empty td { text-align: center; color: #999; padding: 24px; border: none; }
+
+        /* ===== Tab thống kê ===== */
+        .statrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+        .statrow label { font-weight: bold; }
+        .statrow input { height: 28px; padding: 3px 6px; border: 1px solid var(--border); background: #fff; border-radius: 0; }
+        .totals { display: grid; grid-template-columns: minmax(auto, 340px) 1fr; gap: 10px 20px; align-items: center; margin-bottom: 22px; }
+        .t-inc, .t-exp { font-size: 17px; font-weight: bold; }
+        .t-inc { color: #2E8B57; } .t-exp { color: #DC143C; }
+        .t-bal { grid-column: 1 / -1; font-size: 20px; font-weight: bold; color: #0000ff; }
+        .pct { font-style: italic; }
+        h4 { margin: 0 0 8px; font-size: 15px; }
+        .chartbox { position: relative; background: #fff; border: 1px solid #aaa; padding: 8px; margin-bottom: 24px; }
+        .chartbox.line { height: 280px; }
+        .chartbox .empty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: #888; background: #fff; }
+        .pie-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+        .pie-head h4 { margin: 0; }
+        .pie-head select { height: 28px; padding: 3px 6px; border: 1px solid var(--border); background: #e5f1fb; border-radius: 0; }
+        .chartbox.pie { display: flex; align-items: center; gap: 24px; min-height: 300px; }
+        .pie-canvas { position: relative; width: 280px; height: 280px; flex: none; }
+        #pieLegend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
+        #pieLegend li { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+        #pieLegend .sw { width: 12px; height: 12px; flex: none; }
+
+        .status { padding: 6px 15px; color: #b00020; display: none; }
+
+        /* ===== Khóa PIN ===== */
+        .tabspacer { flex: 1; }
+        .toolbtn { font: inherit; font-size: 13px; padding: 4px 10px; margin: 0 0 3px 4px; border: 1px solid #acacac; background: var(--ctrl); cursor: pointer; white-space: nowrap; align-self: center; }
+        .toolbtn:active { background: #d8d8d8; }
+        .lock { display: none; position: fixed; inset: 0; z-index: 100; background: var(--ctrl); align-items: center; justify-content: center; padding: 16px; }
+        body.locked .lock { display: flex; }
+        body.locked .app { display: none; }
+        .modalbg { display: none; position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.4); align-items: center; justify-content: center; padding: 16px; }
+        .modalbg.show { display: flex; }
+        .lockbox, .modal { width: 100%; max-width: 340px; background: #fff; border: 1px solid #acacac; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+        .lockbox h3, .modal h3 { margin: 0 0 6px; font-size: 18px; }
+        .locksub { margin: 0 0 14px; color: #555; }
+        .lockbox input[type=password], .modal input[type=password] { display: block; width: 100%; height: 38px; padding: 4px 8px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 0; font-size: 18px; letter-spacing: 4px; }
+        .modal label.f { display: block; margin-bottom: 4px; }
+        .remember { display: flex; align-items: center; gap: 6px; margin: 2px 0 10px; }
+        .lockerr { color: #b00020; min-height: 18px; margin-bottom: 8px; }
+        .btn.primary { background: #3c8dde; border-color: #2f76bd; color: #fff; }
+        .lockbox .btn.primary { width: 100%; height: 40px; font-size: 15px; font-weight: bold; }
+        .modalbtns { display: flex; gap: 8px; justify-content: flex-end; }
+        .hint { margin: 12px 0 0; color: #666; font-size: 12px; }
+        .lockalt { display: block; margin-top: 14px; text-align: center; color: #1a5fb4; font-size: 13px; }
+
+        @media (max-width: 720px) {
+            .page { padding: 10px; }
+            .form { grid-template-columns: auto minmax(0, 1fr); }
+            .l1, .l2 { grid-column: 1; } .c1, .c2 { grid-column: 2; }
+            .r1, .r2, .r3 { grid-row: auto; }
+            .quick, .newcat { grid-column: 2; }
+            .form input, .form select, .btn, .quick button { height: 36px; font-size: 16px; }
+            .grid td input, .grid td select { font-size: 16px; height: 32px; }
+            .gridwrap { max-height: none; }
+            .totals { grid-template-columns: 1fr; gap: 4px; }
+            .t-exp { margin-top: 8px; }
+            .chartbox.pie { flex-direction: column; align-items: stretch; }
+            .pie-canvas { margin: 0 auto; max-width: 100%; }
+        }
+    </style>
+</head>
+<body class="locked">
+<div class="app">
+    <div class="tabs">
+        <button class="tab active" data-tab="0">➖ CHI TIÊU</button>
+        <button class="tab" data-tab="1">➕ THU NHẬP</button>
+        <button class="tab" data-tab="2">📊 THỐNG KÊ &amp; BIỂU ĐỒ</button>
+        <span class="tabspacer"></span>
+        <button class="toolbtn" id="btnChangePin" type="button">🔑 Đổi PIN</button>
+        <button class="toolbtn" id="btnLogout" type="button">🔒 Đăng xuất</button>
+    </div>
+    <div class="status" id="status"></div>
+
+    <div id="pages"></div>
+
+    <!-- ===== Tab thống kê ===== -->
+    <section class="page" id="page-2">
+        <div class="statrow">
+            <label for="statMonth">Chọn tháng thống kê:</label>
+            <input type="month" id="statMonth">
+        </div>
+
+        <div class="totals">
+            <div class="t-inc" id="lblInc">Tổng thu: +0 đ</div>
+            <div class="pct" id="pctInc"></div>
+            <div class="t-exp" id="lblExp">Tổng chi: -0 đ</div>
+            <div class="pct" id="pctExp"></div>
+            <div class="t-bal" id="lblBal">SỐ DƯ THÁNG: 0 đ</div>
+        </div>
+
+        <h4>BIỂU ĐỒ ĐƯỜNG: CHI TIÊU TỪNG NGÀY TRONG THÁNG (VNĐ)</h4>
+        <div class="chartbox line">
+            <canvas id="dailyChart"></canvas>
+            <div class="empty" id="dailyEmpty">Không có khoản chi nào trong tháng này</div>
+        </div>
+
+        <h4>BIỂU ĐỒ ĐƯỜNG: SỐ DƯ HÀNG THÁNG (VNĐ)</h4>
+        <div class="chartbox line">
+            <canvas id="lineChart"></canvas>
+            <div class="empty" id="lineEmpty">Chưa có dữ liệu</div>
+        </div>
+
+        <div class="pie-head">
+            <h4>BIỂU ĐỒ TRÒN: TỈ LỆ CÁC MỤC ĐÍCH</h4>
+            <select id="pieType">
+                <option value="false">Chi tiêu</option>
+                <option value="true">Thu nhập</option>
+            </select>
+        </div>
+        <div class="chartbox pie">
+            <div class="pie-canvas"><canvas id="pieChart"></canvas></div>
+            <ul id="pieLegend"></ul>
+            <div class="empty" id="pieEmpty">Chưa có dữ liệu</div>
+        </div>
+    </section>
+</div>
+
+<!-- ===== Màn hình khóa PIN ===== -->
+<div class="lock" id="lock">
+    <div class="lockbox">
+        <h3 id="lockTitle">Đang kết nối...</h3>
+        <p class="locksub" id="lockSub"></p>
+        <input type="password" id="pin1" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Mã PIN (6–8 chữ số)">
+        <input type="password" id="pin2" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Nhập lại mã PIN" style="display:none">
+        <label class="remember" id="rememberRow"><input type="checkbox" id="remember" checked> Ghi nhớ thiết bị này</label>
+        <div class="lockerr" id="lockErr"></div>
+        <button class="btn primary" id="lockBtn" type="button">Mở khóa</button>
+        <a href="#" class="lockalt" id="toggleMode"></a>
+    </div>
+</div>
+
+<!-- ===== Hộp thoại đổi PIN ===== -->
+<div class="modalbg" id="pinModal">
+    <div class="modal">
+        <h3>Đổi mã PIN</h3>
+        <label class="f" for="oldPin">PIN hiện tại</label>
+        <input type="password" id="oldPin" inputmode="numeric" maxlength="8" autocomplete="off">
+        <label class="f" for="newPin">PIN mới (6–8 chữ số)</label>
+        <input type="password" id="newPin" inputmode="numeric" maxlength="8" autocomplete="off">
+        <label class="f" for="newPin2">Nhập lại PIN mới</label>
+        <input type="password" id="newPin2" inputmode="numeric" maxlength="8" autocomplete="off">
+        <div class="lockerr" id="pinErr"></div>
+        <div class="modalbtns">
+            <button class="btn" id="pinCancel" type="button">Hủy</button>
+            <button class="btn primary" id="pinSave" type="button">Đổi PIN</button>
+        </div>
+        <p class="hint">Sau khi đổi, mọi thiết bị khác sẽ tự đăng xuất và phải nhập PIN mới.</p>
+    </div>
+</div>
+
+<script>
+    // ================= FIREBASE =================
+    // CẤU HÌNH (làm 1 lần):
+    //  - FIREBASE_API_KEY: Firebase Console > Project settings > General > Web API Key
+    //  - AUTH_EMAIL: email (viết thường) dùng làm "tài khoản PIN". PIN chính là mật khẩu của tài khoản này.
+    //    Email này phải trùng với email trong database.rules.json và trong bản desktop.
+    const FIREBASE_API_KEY = "AIzaSyDHeJiDoZgMKm6b2Ts9lAcxXBx8medpeec";
+    const AUTH_EMAIL = "admin@chitieu.local";
+
+    const firebaseConfig = {
+        apiKey: FIREBASE_API_KEY,
+        authDomain: "quan-ly-chi-tieu-moi.firebaseapp.com",
+        databaseURL: "https://quan-ly-chi-tieu-moi-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    // ================= TRẠNG THÁI =================
+    const DEFAULT_CATS = [
+        { Name: "Tiền trọ", IsIncome: false },
+        { Name: "Tiền ăn", IsIncome: false },
+        { Name: "Lương", IsIncome: true }
+    ];
+    const PIE_COLORS = ['#4285F4', '#EA4335', '#FBBC05', '#34A853', '#AB47BC', '#FF7043', '#00ACC1', '#8D6E63'];
+
+    let transactions = [];
+    let storedCats = [];
+    let currentTab = 0;
+    let lineChart = null, pieChart = null, dailyChart = null;
+    const pendingSelect = [null, null];
+
+    // ================= TIỆN ÍCH =================
+    const $ = id => document.getElementById(id);
+    const fmt = n => Number(n).toLocaleString('en-US');
+    const parseAmount = s => parseFloat(String(s).replace(/[,.\s]/g, ''));
+    const pad2 = n => String(n).padStart(2, '0');
+    function todayStr() { const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+    function showDate(s) { const [y, m, d] = s.split('-'); return d + '/' + m + '/' + y; }
+    function ym(s) { return { y: parseInt(s.slice(0, 4), 10), m: parseInt(s.slice(5, 7), 10) }; }
+    function formatShort(v) {
+        if (Math.abs(v) >= 1e6) return (Math.round(v / 1e4) / 100) + ' tr';
+        return fmt(v);
+    }
+
+    function catNames(isIncome, extra) {
+        const list = [];
+        const add = n => { if (n && !list.some(x => x.toLowerCase() === n.toLowerCase())) list.push(n); };
+        const src = storedCats.length ? storedCats : DEFAULT_CATS;
+        src.filter(c => c.IsIncome === isIncome).forEach(c => add(c.Name));
+        transactions.filter(t => t.IsIncome === isIncome).forEach(t => add(t.CategoryName));
+        add(extra);
+        return list;
+    }
+
+    // ================= DỰNG GIAO DIỆN 2 TAB NHẬP LIỆU =================
+    function buildInputTab(i) {
+        const isIncome = i === 1;
+        const sec = document.createElement('section');
+        sec.className = 'page' + (i === 0 ? ' active' : '');
+        sec.id = 'page-' + i;
+        sec.innerHTML = `
+            <div class="form">
+                <label class="lbl l1 r1" for="date${i}">Ngày:</label>
+                <input class="c1 r1" type="date" id="date${i}">
+                <label class="lbl l1 r2" for="cat${i}">Mục đích:</label>
+                <select class="c1 r2" id="cat${i}"></select>
+                <div class="newcat c1 r3">
+                    <input type="text" id="newcat${i}" placeholder="Mục mới..." autocomplete="off">
+                    <button class="btn" id="addcat${i}" type="button">Thêm</button>
+                </div>
+                <label class="lbl l2 r1" for="amount${i}">Số tiền:</label>
+                <input class="c2 r1" type="text" inputmode="numeric" autocomplete="off" id="amount${i}">
+                <div class="quick c2 r2" id="quick${i}"></div>
+                <label class="lbl l2 r3" for="note${i}">Ghi chú:</label>
+                <input class="c2 r3" type="text" id="note${i}" autocomplete="off">
+            </div>
+            <button class="save ${isIncome ? 'inc' : 'exp'}" id="save${i}" type="button">${isIncome ? 'LƯU KHOẢN THU' : 'LƯU KHOẢN CHI'}</button>
+            <div class="gridwrap">
+                <table class="grid">
+                    <thead><tr><th>Ngày</th><th>Mục đích</th><th>Số tiền (VNĐ)</th><th>Ghi chú</th><th></th></tr></thead>
+                    <tbody id="body${i}"></tbody>
+                </table>
+            </div>`;
+        $('pages').appendChild(sec);
+
+        $('date' + i).value = todayStr();
+
+        ["0", "00", "000", "0000", "00000", "000000", "Xóa"].forEach(z => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = z;
+            if (z === 'Xóa') b.className = 'clear';
+            b.addEventListener('click', () => {
+                const inp = $('amount' + i);
+                if (z === 'Xóa') inp.value = '';
+                else {
+                    const raw = inp.value.replace(/\D/g, '');
+                    if (!raw) return;
+                    inp.value = fmt(raw + z);
+                }
+                inp.focus();
+            });
+            $('quick' + i).appendChild(b);
+        });
+
+        $('amount' + i).addEventListener('input', e => {
+            const raw = e.target.value.replace(/\D/g, '');
+            e.target.value = raw ? fmt(raw) : '';
+        });
+
+        ['amount', 'note'].forEach(k => $(k + i).addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); saveTransaction(i); }
+        }));
+        $('newcat' + i).addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); addCategory(i); }
+        });
+
+        $('addcat' + i).addEventListener('click', () => addCategory(i));
+        $('save' + i).addEventListener('click', () => saveTransaction(i));
+    }
+
+    // ================= THÊM MỤC / LƯU GIAO DỊCH =================
+    function addCategory(i) {
+        const isIncome = i === 1;
+        const name = $('newcat' + i).value.trim();
+        if (!name) return;
+        if (catNames(isIncome).some(n => n.toLowerCase() === name.toLowerCase())) {
+            alert('Mục này đã tồn tại!');
+            return;
+        }
+        if (storedCats.length === 0) DEFAULT_CATS.forEach(c => db.ref('categories').push(c));
+        pendingSelect[i] = name;
+        db.ref('categories').push({ Name: name, IsIncome: isIncome })
+            .then(() => { $('newcat' + i).value = ''; })
+            .catch(err => alert('Lỗi kết nối: ' + err));
+    }
+
+    function saveTransaction(i) {
+        const isIncome = i === 1;
+        const amount = parseAmount($('amount' + i).value);
+        if (!(amount > 0)) { alert('Vui lòng nhập số tiền hợp lệ!'); return; }
+        const category = $('cat' + i).value;
+        if (!category) { alert('Vui lòng chọn mục đích!'); return; }
+        const date = $('date' + i).value;
+        if (!date) { alert('Vui lòng chọn ngày!'); return; }
+
+        const id = Date.now();
+        db.ref('transactions/' + id).set({
+            Id: id,
+            Date: date + 'T00:00:00',
+            CategoryName: category,
+            Amount: amount,
+            Note: $('note' + i).value.trim(),
+            IsIncome: isIncome
+        }).then(() => {
+            $('amount' + i).value = '';
+            $('note' + i).value = '';
+            $('amount' + i).focus();
+        }).catch(err => alert('Lỗi kết nối: ' + err));
+    }
+
+    // ================= BẢNG DỮ LIỆU (SỬA / XÓA TRỰC TIẾP) =================
+    function renderCategorySelects() {
+        [0, 1].forEach(i => {
+            const sel = $('cat' + i);
+            const keep = pendingSelect[i] || sel.value;
+            const names = catNames(i === 1);
+            sel.innerHTML = '';
+            names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
+            if (keep && names.includes(keep)) sel.value = keep;
+            if (pendingSelect[i] && names.includes(pendingSelect[i])) pendingSelect[i] = null;
+        });
+    }
+
+    function renderTable(i) {
+        const isIncome = i === 1;
+        const body = $('body' + i);
+        const rows = transactions.filter(t => t.IsIncome === isIncome)
+            .sort((a, b) => (a.Date < b.Date ? 1 : a.Date > b.Date ? -1 : b.Id - a.Id));
+        body.innerHTML = '';
+
+        if (!rows.length) {
+            const tr = document.createElement('tr');
+            tr.className = 'empty';
+            tr.innerHTML = '<td colspan="5">Chưa có giao dịch nào.</td>';
+            body.appendChild(tr);
+            return;
+        }
+
+        rows.forEach(t => {
+            const tr = document.createElement('tr');
+
+            const tdDate = document.createElement('td');
+            tdDate.className = 'date';
+            tdDate.textContent = showDate(t.Date);
+
+            const tdCat = document.createElement('td');
+            const sel = document.createElement('select');
+            sel.dataset.key = t.key; sel.dataset.col = 'cat';
+            catNames(isIncome, t.CategoryName).forEach(n => {
+                const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o);
+            });
+            sel.value = t.CategoryName;
+            sel.addEventListener('change', () => db.ref('transactions/' + t.key).update({ CategoryName: sel.value }));
+            tdCat.appendChild(sel);
+
+            const tdAmt = document.createElement('td');
+            const amt = document.createElement('input');
+            amt.type = 'text'; amt.inputMode = 'numeric'; amt.autocomplete = 'off';
+            amt.value = fmt(t.Amount);
+            amt.dataset.key = t.key; amt.dataset.col = 'amt';
+            amt.addEventListener('focus', () => amt.select());
+            amt.addEventListener('change', () => {
+                const v = parseAmount(amt.value);
+                if (!(v > 0)) {
+                    alert('Số tiền không hợp lệ!');
+                    amt.value = fmt(t.Amount);
+                    return;
+                }
+                if (v !== t.Amount) db.ref('transactions/' + t.key).update({ Amount: v });
+                else amt.value = fmt(v);
+            });
+            tdAmt.appendChild(amt);
+
+            const tdNote = document.createElement('td');
+            const note = document.createElement('input');
+            note.type = 'text'; note.autocomplete = 'off';
+            note.value = t.Note;
+            note.dataset.key = t.key; note.dataset.col = 'note';
+            note.addEventListener('change', () => db.ref('transactions/' + t.key).update({ Note: note.value.trim() }));
+            tdNote.appendChild(note);
+
+            [amt, note].forEach(inp => inp.addEventListener('keydown', e => {
+                if (e.key === 'Enter') inp.blur();
+                if (e.key === 'Escape') { inp.value = inp === amt ? fmt(t.Amount) : t.Note; inp.blur(); }
+            }));
+
+            const tdDel = document.createElement('td');
+            tdDel.className = 'del';
+            const btn = document.createElement('button');
+            btn.type = 'button'; btn.textContent = 'Xóa';
+            btn.addEventListener('click', () => {
+                const info = showDate(t.Date) + ' - ' + t.CategoryName + ' - ' + fmt(t.Amount) + ' đ';
+                if (confirm('Bạn có chắc muốn xóa khoản này?\n' + info)) db.ref('transactions/' + t.key).remove();
+            });
+            tdDel.appendChild(btn);
+
+            tr.append(tdDate, tdCat, tdAmt, tdNote, tdDel);
+            body.appendChild(tr);
+        });
+    }
+
+    // ================= THỐNG KÊ & BIỂU ĐỒ =================
+    function sumMonth(y, m, isIncome) {
+        return transactions.filter(t => t.IsIncome === isIncome && ym(t.Date).y === y && ym(t.Date).m === m)
+            .reduce((s, t) => s + t.Amount, 0);
+    }
+
+    function percentText(cur, prev, isIncome, el) {
+        if (prev === 0) {
+            el.textContent = cur > 0 ? '(Tăng 100% so với tháng trước)' : '(Không có dữ liệu tháng trước)';
+            el.style.color = '';
+            return;
+        }
+        const p = (cur - prev) / prev * 100;
+        const r = Math.round(Math.abs(p) * 100) / 100;
+        el.textContent = (p >= 0 ? '(Tăng ' : '(Giảm ') + r + '% so với tháng trước)';
+        if (isIncome) el.style.color = p >= 0 ? '#2E8B57' : '#FFA500';
+        else el.style.color = p >= 0 ? '#DC143C' : '#2E8B57';
+    }
+
+    function renderStats() {
+        if (!$('statMonth').value) $('statMonth').value = todayStr().slice(0, 7);
+        const { y, m } = ym($('statMonth').value);
+        const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
+
+        const inc = sumMonth(y, m, true), exp = sumMonth(y, m, false);
+        const pInc = sumMonth(py, pm, true), pExp = sumMonth(py, pm, false);
+
+        $('lblInc').textContent = 'Tổng thu: +' + fmt(inc) + ' đ';
+        $('lblExp').textContent = 'Tổng chi: -' + fmt(exp) + ' đ';
+        $('lblBal').textContent = 'SỐ DƯ THÁNG: ' + fmt(inc - exp) + ' đ';
+        percentText(inc, pInc, true, $('pctInc'));
+        percentText(exp, pExp, false, $('pctExp'));
+
+        renderDailyChart(y, m);
+        renderLineChart();
+        renderPieChart(y, m);
+    }
+
+    const valueLabelPlugin = {
+        id: 'valueLabels',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const ds = chart.data.datasets[0];
+            const meta = chart.getDatasetMeta(0);
+            ctx.save();
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            meta.data.forEach((pt, idx) => {
+                const v = ds.data[idx];
+                ctx.fillStyle = v >= 0 ? '#2E8B57' : '#DC143C';
+                ctx.fillText(formatShort(v), pt.x, v >= 0 ? pt.y - 10 : pt.y + 20);
+            });
+            ctx.restore();
+        }
+    };
+
+    const pieLabelPlugin = {
+        id: 'pieLabels',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const data = chart.data.datasets[0].data;
+            const total = data.reduce((a, b) => a + b, 0);
+            ctx.save();
+            ctx.font = 'bold 13px Arial';
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            chart.getDatasetMeta(0).data.forEach((arc, idx) => {
+                const pct = data[idx] / total * 100;
+                if (pct < 5) return;
+                const p = arc.tooltipPosition();
+                ctx.fillText((Math.round(pct * 10) / 10) + '%', p.x, p.y);
+            });
+            ctx.restore();
+        }
+    };
+
+    const dailyLabelPlugin = {
+        id: 'dailyLabels',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const ds = chart.data.datasets[0];
+            ctx.save();
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#DC143C';
+            chart.getDatasetMeta(0).data.forEach((pt, idx) => {
+                const v = ds.data[idx];
+                if (v > 0) ctx.fillText(formatShort(v), pt.x, pt.y - 10);
+            });
+            ctx.restore();
+        }
+    };
+
+    function renderDailyChart(y, m) {
+        const days = new Date(y, m, 0).getDate();
+        const values = new Array(days).fill(0);
+        transactions.forEach(t => {
+            if (t.IsIncome) return;
+            const d = ym(t.Date);
+            if (d.y === y && d.m === m) values[parseInt(t.Date.slice(8, 10), 10) - 1] += t.Amount;
+        });
+        const has = values.some(v => v > 0);
+
+        $('dailyEmpty').style.display = has ? 'none' : 'flex';
+        if (dailyChart) { dailyChart.destroy(); dailyChart = null; }
+        if (!has) return;
+
+        dailyChart = new Chart($('dailyChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: values.map((_, i) => String(i + 1)),
+                datasets: [{
+                    label: 'Chi tiêu',
+                    data: values,
+                    borderColor: '#DC143C',
+                    borderWidth: 2.2,
+                    tension: 0,
+                    fill: false,
+                    pointRadius: values.map(v => v > 0 ? 4 : 0),
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#DC143C',
+                    pointBorderColor: '#DC143C'
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                layout: { padding: { top: 20, right: 20 } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: c => 'Ngày ' + c[0].label,
+                            label: c => 'Chi: ' + fmt(c.parsed.y) + ' đ'
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { autoSkip: true, maxTicksLimit: 31 } },
+                    y: { beginAtZero: true, grace: '12%', ticks: { callback: v => formatShort(v) } }
+                }
+            },
+            plugins: [dailyLabelPlugin]
+        });
+    }
+
+    function renderLineChart() {
+        let labels = [], values = [];
+        if (transactions.length) {
+            const monthly = {};
+            transactions.forEach(t => {
+                const k = t.Date.slice(0, 7);
+                monthly[k] = (monthly[k] || 0) + (t.IsIncome ? t.Amount : -t.Amount);
+            });
+            const keys = Object.keys(monthly).sort();
+            let a = ym(keys[0] + '-01'), b = ym(keys[keys.length - 1] + '-01');
+            let idx = a.y * 12 + a.m - 1, last = b.y * 12 + b.m - 1;
+            if (last - idx >= 12) idx = last - 11;
+            for (; idx <= last; idx++) {
+                const yy = Math.floor(idx / 12), mm = idx % 12 + 1;
+                labels.push(pad2(mm) + '/' + String(yy).slice(-2));
+                values.push(monthly[yy + '-' + pad2(mm)] || 0);
+            }
+        }
+
+        $('lineEmpty').style.display = labels.length ? 'none' : 'flex';
+        if (lineChart) { lineChart.destroy(); lineChart = null; }
+        if (!labels.length) return;
+
+        lineChart = new Chart($('lineChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Số dư',
+                    data: values,
+                    borderColor: '#4169E1',
+                    borderWidth: 2.5,
+                    tension: 0,
+                    fill: false,
+                    pointRadius: 5,
+                    pointBackgroundColor: values.map(v => v >= 0 ? '#2E8B57' : '#DC143C'),
+                    pointBorderColor: values.map(v => v >= 0 ? '#2E8B57' : '#DC143C')
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                layout: { padding: { top: 20, right: 20 } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: c => 'Số dư: ' + fmt(c.parsed.y) + ' đ' } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grace: '12%', ticks: { callback: v => formatShort(v) } }
+                }
+            },
+            plugins: [valueLabelPlugin]
+        });
+    }
+
+    function renderPieChart(y, m) {
+        const isIncome = $('pieType').value === 'true';
+        const map = {};
+        transactions.filter(t => t.IsIncome === isIncome && ym(t.Date).y === y && ym(t.Date).m === m)
+            .forEach(t => { map[t.CategoryName] = (map[t.CategoryName] || 0) + t.Amount; });
+
+        let groups = Object.keys(map).map(k => [k, map[k]]).sort((a, b) => b[1] - a[1]);
+        if (groups.length > 8) {
+            const rest = groups.slice(7).reduce((s, g) => s + g[1], 0);
+            groups = groups.slice(0, 7).concat([['Khác', rest]]);
+        }
+        const total = groups.reduce((s, g) => s + g[1], 0);
+
+        $('pieEmpty').style.display = total > 0 ? 'none' : 'flex';
+        const legend = $('pieLegend');
+        legend.innerHTML = '';
+        if (pieChart) { pieChart.destroy(); pieChart = null; }
+        if (!(total > 0)) return;
+
+        groups.forEach((g, idx) => {
+            const li = document.createElement('li');
+            const sw = document.createElement('span');
+            sw.className = 'sw';
+            sw.style.background = PIE_COLORS[idx % PIE_COLORS.length];
+            const tx = document.createElement('span');
+            tx.textContent = g[0] + ': ' + (Math.round(g[1] / total * 1000) / 10) + '% (' + fmt(g[1]) + ' đ)';
+            li.append(sw, tx);
+            legend.appendChild(li);
+        });
+
+        pieChart = new Chart($('pieChart').getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: groups.map(g => g[0]),
+                datasets: [{
+                    data: groups.map(g => g[1]),
+                    backgroundColor: groups.map((g, idx) => PIE_COLORS[idx % PIE_COLORS.length]),
+                    borderColor: '#fff',
+                    borderWidth: groups.length > 1 ? 2 : 0
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.parsed) + ' đ' } }
+                }
+            },
+            plugins: [pieLabelPlugin]
+        });
+    }
+
+    // ================= CHUYỂN TAB =================
+    function switchTab(n) {
+        currentTab = n;
+        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', +b.dataset.tab === n));
+        [0, 1, 2].forEach(i => $('page-' + i).classList.toggle('active', i === n));
+        if (n === 2) renderStats();
+    }
+
+    let renderTimer = null;
+    function scheduleRender() {
+        clearTimeout(renderTimer);
+        renderTimer = setTimeout(renderAll, 0);
+    }
+
+    function renderAll() {
+        const a = document.activeElement;
+        const focusKey = a && a.dataset && a.dataset.key ? a.dataset.key + '|' + a.dataset.col : null;
+
+        renderCategorySelects();
+        renderTable(0);
+        renderTable(1);
+        if (currentTab === 2) renderStats();
+
+        if (focusKey) {
+            const [key, col] = focusKey.split('|');
+            const el = document.querySelector('[data-key="' + key + '"][data-col="' + col + '"]');
+            if (el && el !== document.activeElement) el.focus();
+        }
+    }
+
+    // ================= KHỞI TẠO =================
+    buildInputTab(0);
+    buildInputTab(1);
+    $('statMonth').value = todayStr().slice(0, 7);
+    $('statMonth').addEventListener('change', renderStats);
+    $('pieType').addEventListener('change', renderStats);
+    document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(+b.dataset.tab)));
+
+    function onError(err) {
+        if (err && err.code === 'PERMISSION_DENIED' && unlocked) {
+            lockApp('Phiên đăng nhập đã hết hạn hoặc không có quyền truy cập. Vui lòng nhập lại mã PIN.');
+            return;
+        }
+        const s = $('status');
+        s.style.display = 'block';
+        s.textContent = 'Lỗi kết nối dữ liệu: ' + err.message;
+    }
+
+    // ================= TẢI DỮ LIỆU (chỉ chạy sau khi xác thực Firebase Auth) =================
+    let dataStarted = false;
+    const pinVerRef = db.ref('settings/pinVer');
+    let localPinVer = null;
+
+    function startData() {
+        if (dataStarted) return;
+        dataStarted = true;
+        $('status').style.display = 'none';
+
+        // Theo dõi phiên bản PIN để tự động đăng xuất ngay khi thiết bị khác đổi PIN
+        pinVerRef.on('value', snap => {
+            const remoteVer = snap.val();
+            if (!remoteVer) return;
+            if (localPinVer === null) {
+                localPinVer = remoteVer;
+            } else if (remoteVer !== localPinVer) {
+                lockApp('Mã PIN vừa được thay đổi ở thiết bị khác. Vui lòng nhập mã PIN mới.');
+            }
+        });
+
+        db.ref('categories').on('value', snap => {
+            const data = snap.val() || {};
+            storedCats = Object.keys(data).map(k => ({
+                Name: data[k].Name,
+                IsIncome: data[k].IsIncome === true || data[k].IsIncome === 'true'
+            })).filter(c => c.Name);
+            scheduleRender();
+        }, onError);
+
+        db.ref('transactions').on('value', snap => {
+            const data = snap.val() || {};
+            transactions = Object.keys(data).map(k => {
+                const t = data[k] || {};
+                return {
+                    key: k,
+                    Id: Number(t.Id) || Number(k) || 0,
+                    Date: String(t.Date || '').slice(0, 10),
+                    CategoryName: t.CategoryName || '',
+                    Amount: Number(t.Amount) || 0,
+                    Note: t.Note || '',
+                    IsIncome: t.IsIncome === true || t.IsIncome === 'true'
+                };
+            }).filter(t => /^\d{4}-\d{2}-\d{2}$/.test(t.Date));
+            scheduleRender();
+        }, onError);
+    }
+
+    function stopData() {
+        dataStarted = false;
+        localPinVer = null;
+        pinVerRef.off();
+        db.ref('categories').off();
+        db.ref('transactions').off();
+        transactions = [];
+        storedCats = [];
+        if (lineChart) { lineChart.destroy(); lineChart = null; }
+        if (pieChart) { pieChart.destroy(); pieChart = null; }
+        if (dailyChart) { dailyChart.destroy(); dailyChart = null; }
+        [0, 1].forEach(i => { $('amount' + i).value = ''; $('note' + i).value = ''; });
+        switchTab(0);
+        renderAll();
+    }
+
+    // ================= XÁC THỰC FIREBASE AUTH BẰNG MÃ PIN =================
+    let unlocked = false;
+    let isCreateMode = false;
+    let busy = false;
+    let pendingAuthMsg = '';
+
+    // Firebase Auth yêu cầu mật khẩu tối thiểu 6 ký tự -> PIN từ 6 đến 8 chữ số
+    const validPin = p => /^\d{6,8}$/.test(p);
+
+    function translateAuthError(e) {
+        const code = (e && e.code) || '';
+        if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials')
+            return 'Sai mã PIN.';
+        if (code === 'auth/user-not-found')
+            return 'Chưa khởi tạo mã PIN trên hệ thống. Hãy bấm "Tạo mã PIN mới" bên dưới.';
+        if (code === 'auth/email-already-in-use')
+            return 'Tài khoản PIN đã tồn tại. Hãy chuyển sang chế độ Mở khóa.';
+        if (code === 'auth/too-many-requests')
+            return 'Nhập sai quá nhiều lần. Firebase đã tạm khóa, vui lòng thử lại sau ít phút.';
+        if (code === 'auth/weak-password')
+            return 'Mã PIN phải có ít nhất 6 chữ số.';
+        if (code === 'auth/network-request-failed')
+            return 'Lỗi kết nối mạng.';
+        return 'Lỗi xác thực: ' + (e.message || code);
+    }
+
+    function renderLock(msg) {
+        $('lockTitle').textContent = isCreateMode ? 'Tạo mã PIN' : 'Nhập mã PIN';
+        $('lockSub').textContent = isCreateMode
+            ? 'Đặt mã PIN (6–8 chữ số) làm mật khẩu bảo vệ trên Firebase.'
+            : 'Nhập mã PIN (6–8 chữ số) để mở khóa dữ liệu.';
+        $('pin1').style.display = '';
+        $('pin2').style.display = isCreateMode ? '' : 'none';
+        $('rememberRow').style.display = '';
+        $('lockBtn').style.display = '';
+        $('lockBtn').textContent = isCreateMode ? 'Tạo PIN' : 'Mở khóa';
+        $('toggleMode').textContent = isCreateMode
+            ? 'Đã có mã PIN? Quay lại mở khóa'
+            : 'Lần đầu sử dụng? Tạo mã PIN mới';
+        if (msg !== undefined) $('lockErr').textContent = msg || '';
+        setTimeout(() => $('pin1').focus(), 0);
+    }
+
+    function enterApp() {
+        unlocked = true;
+        document.body.classList.remove('locked');
+        $('pin1').value = '';
+        $('pin2').value = '';
+        $('lockErr').textContent = '';
+        startData();
+    }
+
+    async function lockApp(msg) {
+        pendingAuthMsg = msg || '';
+        unlocked = false;
+        $('pinModal').classList.remove('show');
+        document.body.classList.add('locked');
+        stopData();
+        try {
+            if (auth.currentUser) await auth.signOut();
+        } catch (e) {}
+        renderLock(pendingAuthMsg);
+    }
+
+    async function submitLock() {
+        if (busy) return;
+        const pin = $('pin1').value;
+        if (!validPin(pin)) {
+            $('lockErr').textContent = 'Mã PIN phải gồm 6–8 chữ số.';
+            return;
+        }
+        if (isCreateMode && pin !== $('pin2').value) {
+            $('lockErr').textContent = 'Hai lần nhập mã PIN không khớp.';
+            return;
+        }
+
+        busy = true;
+        $('lockBtn').disabled = true;
+        $('lockErr').textContent = 'Đang xác thực với Firebase...';
+        try {
+            const persistence = $('remember').checked
+                ? firebase.auth.Auth.Persistence.LOCAL
+                : firebase.auth.Auth.Persistence.SESSION;
+            await auth.setPersistence(persistence);
+
+            if (isCreateMode) {
+                await auth.createUserWithEmailAndPassword(AUTH_EMAIL.trim().toLowerCase(), pin);
+                const ver = Date.now().toString();
+                localPinVer = ver;
+                await pinVerRef.set(ver);
+                isCreateMode = false;
+            } else {
+                await auth.signInWithEmailAndPassword(AUTH_EMAIL.trim().toLowerCase(), pin);
+            }
+            // onAuthStateChanged sẽ tự động gọi enterApp()
+        } catch (e) {
+            $('lockErr').textContent = translateAuthError(e);
+            $('pin1').value = '';
+            $('pin1').focus();
+        } finally {
+            busy = false;
+            $('lockBtn').disabled = false;
+        }
+    }
+
+    // ----- Đổi PIN (Đổi mật khẩu Firebase Auth) -----
+    function openPinModal() {
+        ['oldPin', 'newPin', 'newPin2'].forEach(id => { $(id).value = ''; });
+        $('pinErr').textContent = '';
+        $('pinModal').classList.add('show');
+        $('oldPin').focus();
+    }
+
+    async function changePin() {
+        if (busy || !unlocked || !auth.currentUser) return;
+        const oldPin = $('oldPin').value;
+        const n1 = $('newPin').value;
+        const n2 = $('newPin2').value;
+        const err = t => { $('pinErr').textContent = t; };
+
+        if (!validPin(oldPin)) return err('PIN hiện tại gồm 6–8 chữ số.');
+        if (!validPin(n1)) return err('PIN mới phải gồm 6–8 chữ số.');
+        if (n1 !== n2) return err('Hai lần nhập PIN mới không khớp.');
+
+        busy = true;
+        $('pinSave').disabled = true;
+        err('Đang cập nhật PIN trên Firebase...');
+        try {
+            const cred = firebase.auth.EmailAuthProvider.credential(auth.currentUser.email, oldPin);
+            await auth.currentUser.reauthenticateWithCredential(cred);
+            await auth.currentUser.updatePassword(n1);
+
+            const newVer = Date.now().toString();
+            localPinVer = newVer; // giữ phiên hiện tại không bị tự khóa
+            await pinVerRef.set(newVer);
+
+            $('pinModal').classList.remove('show');
+            alert('Đã đổi mã PIN thành công! Các thiết bị khác sẽ tự động đăng xuất.');
+        } catch (e) {
+            err(translateAuthError(e));
+        } finally {
+            busy = false;
+            $('pinSave').disabled = false;
+        }
+    }
+
+    // ----- Sự kiện -----
+    $('lockBtn').addEventListener('click', submitLock);
+    ['pin1', 'pin2'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') submitLock(); }));
+    ['oldPin', 'newPin', 'newPin2'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') changePin(); }));
+    ['pin1', 'pin2', 'oldPin', 'newPin', 'newPin2'].forEach(id =>
+        $(id).addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, ''); }));
+
+    $('toggleMode').addEventListener('click', e => {
+        e.preventDefault();
+        isCreateMode = !isCreateMode;
+        $('pin1').value = '';
+        $('pin2').value = '';
+        renderLock('');
+    });
+
+    $('btnChangePin').addEventListener('click', openPinModal);
+    $('btnLogout').addEventListener('click', () => lockApp(''));
+    $('pinCancel').addEventListener('click', () => $('pinModal').classList.remove('show'));
+    $('pinSave').addEventListener('click', changePin);
+
+    auth.onAuthStateChanged(user => {
+        if (user && user.email && user.email.toLowerCase() === AUTH_EMAIL.trim().toLowerCase()) {
+            enterApp();
+        } else {
+            if (user) auth.signOut();
+            unlocked = false;
+            document.body.classList.add('locked');
+            stopData();
+            renderLock(pendingAuthMsg);
+            pendingAuthMsg = '';
+        }
+    });
+
+    renderAll();
+</script>
+</body>
+</html>
